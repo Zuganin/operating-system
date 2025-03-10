@@ -37,9 +37,9 @@ Usage: ./program <input_file> <output_file>
 #### input1.txt
 Файл(больше 5000 байт) состоящий из комбинаций следующих рандомных строк:
 qrgfdhethrwrtg4563456g3ty364
- \
- \ 
- \
+ '\
+ '\ 
+ '\
 \ &6563gethgerth ghfghjdjdghj! g345tgtv!!!!!! '\0'
 fgsdhsdtfg34534ert5 _ rthergngfh 9995639456 sjknrgnwkjg454589845hf5hh
 В каждых 6 строках файла, 6 корректных "слов".
