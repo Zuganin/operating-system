@@ -50,7 +50,6 @@ int main(int argc, char *argv[]) {
             clean();
             exit(1);
         }
-        printf("P1 считал данные из файла и записал в fifo1\n");
     }
 
     close(fd_in);
@@ -67,7 +66,6 @@ int main(int argc, char *argv[]) {
 
     char result[BUFFER_SIZE];
     int bytes_result = read(fifo2_rd, result, BUFFER_SIZE);
-    printf("P1 считал данные из fifo2\n");
     close(fifo2_rd);
 
     if (bytes_result <= 0) {
@@ -87,7 +85,6 @@ int main(int argc, char *argv[]) {
     if (write(fd_out, result, bytes_result) != bytes_result) {
         perror("write to output file");
     }
-    printf("P1 записал результат в файл\n");
 
     close(fd_out);
     clean();

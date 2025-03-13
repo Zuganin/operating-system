@@ -18,53 +18,126 @@ void clean() {
 }
 
 
-int process_text(char *buffer, int size, int *in_word, int *word_started_with_letter) {
-    int count = 0;
-    for (int i = 0; i < size; i++) {
-        if (!isalnum((unsigned char)buffer[i])) {
-            if (*in_word) {
-                if (*word_started_with_letter) {
-                    count++;
-                }
-                *in_word = 0;
-                *word_started_with_letter = 0;
-            }
-        } else {
-            if (!(*in_word)) {
-                *in_word = 1;
+char **words;
+int wordCount = 0;
 
-                if (isalpha((unsigned char)buffer[i])) {
-                    *word_started_with_letter = 1;
-                } else {
-                    *word_started_with_letter = 0;
-                }
-            }
+int uniqueWord(char *newWord) {
+    int isUnique = 1;
+    for (int i = 0; i < wordCount; i++) {
+        if (strcmp(words[i], newWord) == 0) {
+            isUnique = 0;  
+            break;
         }
     }
-    return count;
+    return isUnique;
 }
 
-int main(){
+void freeWords() {
+    for (int i = 0; i < wordCount; i++) {
+        free(words[i]);
+    }
+    free(words);
+}
 
+
+int processText(char *buffer, int buf_size, char *prevPart, int *weCanMakeNewWord, int *firstLetterInWordIsAlpha) {
+    int uniqueCount = 0;
+    char word[BUFFER_SIZE];
+    int wordIndex = 0;
+
+    if (*weCanMakeNewWord) {
+        strcpy(word, prevPart);
+        wordIndex = strlen(prevPart);
+    } else {
+        word[0] = '\0';
+    }
+
+    for (int i = 0; i < buf_size; i++) {
+        char ch = buffer[i];
+
+        if (isdigit(ch) && !*firstLetterInWordIsAlpha) {
+            *weCanMakeNewWord = 0;
+            *firstLetterInWordIsAlpha = 0;
+            continue;
+        }
+
+        if (isalpha(ch) && *weCanMakeNewWord) {
+            if (wordIndex < BUFFER_SIZE -1 ) {  
+                word[wordIndex++] = ch;
+            }
+            *firstLetterInWordIsAlpha = 1;
+            continue;
+        }
+
+        if (isalnum(ch) && *firstLetterInWordIsAlpha) {
+            if (wordIndex < BUFFER_SIZE -1 ) {
+                word[wordIndex++] = ch;
+            }
+            continue;
+        }
+
+        if (!isalnum(ch) && *firstLetterInWordIsAlpha) {
+            word[wordIndex] = '\0'; 
+            if (uniqueWord(word)) {
+                words[wordCount] = strdup(word);
+                uniqueCount++;
+                wordCount++;
+            }
+            word[0] = '\0';
+            wordIndex = 0;
+            *weCanMakeNewWord = 0;
+            *firstLetterInWordIsAlpha = 0;
+            continue;
+        }
+
+        if (!isalnum(ch) && !*weCanMakeNewWord) {
+            *weCanMakeNewWord = 1;
+            continue;
+        }
+    }
+    if (buf_size < BUFFER_SIZE) {
+        if (isalnum(buffer[buf_size-1]) && *firstLetterInWordIsAlpha) {
+            word[wordIndex] = '\0'; 
+            if (uniqueWord(word)) {
+                words[wordCount] = strdup(word);
+                uniqueCount++;
+                wordCount++;
+            }
+            word[0] = '\0';
+            wordIndex = 0;
+            *weCanMakeNewWord = 0;
+            *firstLetterInWordIsAlpha = 0;
+        }
+    }
+
+    word[wordIndex] = '\0';
+    strcpy(prevPart, word);
+    return uniqueCount;
+}
+
+
+int main(){
+    words = malloc(sizeof(char*) * 1024);
+    if (!words) {
+        perror("malloc");
+        exit(1);
+    }
     int fifo1_rd = open(fifo1, O_RDONLY);
     if (fifo1_rd < 0) {
         perror("open fifo1 for reading");
         exit(1);
     }
-
-    char buffer[BUFFER_SIZE];
     int bytes_read;
-    int count = 0;
-    int in_word = 0;
-    int word_started_with_letter = 0;
+    char buffer[BUFFER_SIZE];
+    char prevPart[BUFFER_SIZE];
+    prevPart[0] = '\0';
+    int weCanMakeNewWord = 1;
+    int firstLetterInWordIsAlpha = 0;
 
     while ((bytes_read = read(fifo1_rd, buffer, BUFFER_SIZE)) > 0) {
-        count += process_text(buffer, bytes_read, &in_word, &word_started_with_letter);
+        processText(buffer, bytes_read, prevPart, &weCanMakeNewWord, &firstLetterInWordIsAlpha);
     }
     
-    if (in_word && word_started_with_letter) {
-        count++;
-    }
     close(fifo1_rd);
 
     int fifo2_wr = open(fifo2, O_WRONLY);
@@ -74,7 +147,7 @@ int main(){
     }
 
     char output[BUFFER_SIZE];
-    snprintf(output, BUFFER_SIZE, "Количество \"слов\" в файле: %d\n", count);
+    snprintf(output, BUFFER_SIZE, "Количество уникальных \"слов\" в файле: %d\n", wordCount);
     write(fifo2_wr, output, strlen(output));
 
     close(fifo2_wr);
