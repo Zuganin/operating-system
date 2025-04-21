@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <string.h>
 
+//
+
 #define SHM_NAME "/counter"  
 
 volatile sig_atomic_t finish_flag = 0;
@@ -27,7 +29,7 @@ int main() {
         return 1;
     }
 
-    shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0600);
+    shm_fd = shm_open(name, O_CREAT | O_RDWR, 0600);
     if (shm_fd == -1) {
         perror("shm_open");
         return 1;
@@ -60,7 +62,7 @@ int main() {
     }
 
     if (finish_flag) {
-        if (shm_unlink(SHM_NAME) == -1) {
+        if (shm_unlink(name) == -1) {
             perror("shm_unlink");
             return 1;
         }
