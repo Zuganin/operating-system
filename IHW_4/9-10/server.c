@@ -82,6 +82,7 @@ pthread_mutex_t monitors_mutex = PTHREAD_MUTEX_INITIALIZER;  // Мьютекс �
 void notify_all_clients_finished(int sockfd);
 void send_to_all_monitors(int sockfd, const char *event_type, const char *message);
 void cleanup_monitors();
+void notify_all_clients_shutdown(int sockfd); // Добавлена forward-декларация функции notify_all_clients_shutdown
 
 // Обработчик SIGINT
 void sigint_handler(int sig) {
@@ -91,7 +92,7 @@ void sigint_handler(int sig) {
     
     // Уведомляем всех клиентов о завершении работы
     if (sockfd_global != -1) {
-        notify_all_clients_finished(sockfd_global);
+        notify_all_clients_shutdown(sockfd_global);
         
         // Отправляем сигнал завершения всем мониторам
         send_to_all_monitors(sockfd_global, MONITOR_SHUTDOWN, "Сервер завершает работу по сигналу SIGINT");
@@ -478,28 +479,37 @@ void update_client_info(struct sockaddr_in *client_addr, socklen_t client_len, i
     pthread_mutex_unlock(&clients_mutex);
 }
 
-// Функция для уведомления всех клиентов о завершении
+// Функция для уведомления всех клиентов о завершении по SIGINT
+void notify_all_clients_shutdown(int sockfd) {
+    pthread_mutex_lock(&clients_mutex);
+    printf("Уведомляем всех клиентов о завершении работы по SIGINT...\n");
+    send_to_all_monitors(sockfd, SERVER_EVENT, "Уведомляем всех клиентов о завершении работы по SIGINT");
+    for (int i = 0; i < num_clients_connected; i++) {
+        if (sendto(sockfd, "SERVER_SHUTDOWN", strlen("SERVER_SHUTDOWN"), 0,
+                   (struct sockaddr*)&clients[i].addr, clients[i].addr_len) < 0) {
+            perror("Ошибка отправки SERVER_SHUTDOWN клиенту");
+        } else {
+            printf("SERVER_SHUTDOWN отправлено клиенту %s:%d\n",
+                   inet_ntoa(clients[i].addr.sin_addr), ntohs(clients[i].addr.sin_port));
+        }
+    }
+    pthread_mutex_unlock(&clients_mutex);
+}
+
+// Функция для уведомления всех клиентов о завершении (естественное)
 void notify_all_clients_finished(int sockfd) {
     pthread_mutex_lock(&clients_mutex);
-    
-    printf("Уведомляем всех клиентов о завершении работы...\n");
-    send_to_all_monitors(sockfd, SERVER_EVENT, "Уведомляем всех клиентов о завершении работы");
-    
+    printf("Уведомляем всех клиентов о завершении работы (NO_MORE_TASKS)...\n");
+    send_to_all_monitors(sockfd, SERVER_EVENT, "Уведомляем всех клиентов о завершении работы (NO_MORE_TASKS)");
     for (int i = 0; i < num_clients_connected; i++) {
         if (sendto(sockfd, NO_MORE_TASKS, strlen(NO_MORE_TASKS), 0,
                    (struct sockaddr*)&clients[i].addr, clients[i].addr_len) < 0) {
             perror("Ошибка отправки уведомления клиенту");
         } else {
-            printf("Уведомление отправлено клиенту %s:%d\n",
+            printf("NO_MORE_TASKS отправлено клиенту %s:%d\n",
                    inet_ntoa(clients[i].addr.sin_addr), ntohs(clients[i].addr.sin_port));
-            
-            char message[BUFFER_SIZE];
-            snprintf(message, BUFFER_SIZE, "Уведомление о завершении отправлено клиенту %s:%d",
-                    inet_ntoa(clients[i].addr.sin_addr), ntohs(clients[i].addr.sin_port));
-            send_to_all_monitors(sockfd, SERVER_EVENT, message);
         }
     }
-    
     pthread_mutex_unlock(&clients_mutex);
 }
 
@@ -661,8 +671,7 @@ int main(int argc, char *argv[]) {
                 strcpy(response, NO_MORE_TASKS);
                 printf("Задачи закончились. Отправляем сигнал завершения клиенту\n");
                 send_to_all_monitors(sockfd, SERVER_EVENT, "Задачи закончились - отправляем сигнал завершения клиенту");
-            }
-             else {
+            } else {
                 // Формируем ответ: позиция:задача
                 snprintf(response, BUFFER_SIZE, "%d:%s", task_position, task);
                 printf("Отправляем задачу клиенту (позиция %d): %s\n", task_position, task);

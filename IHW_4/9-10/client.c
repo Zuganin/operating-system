@@ -72,7 +72,7 @@ void send_to_monitor(const char *message, const char *server_ip) {
     monitor_addr.sin_port = htons(DEFAULT_PORT);
     inet_pton(AF_INET, server_ip, &monitor_addr.sin_addr);
     
-    snprintf(full_message, BUFFER_SIZE, "%s:%s", CLIENT_EVENT, message);
+    //snprintf(full_message, BUFFER_SIZE, "%s:%s", CLIENT_EVENT, message);
     
     sendto(monitor_sockfd, full_message, strlen(full_message), 0,
            (struct sockaddr*)&monitor_addr, sizeof(monitor_addr));
@@ -194,10 +194,15 @@ int main(int argc, char *argv[]) {
         
         buffer[received_bytes] = '\0';
         
-        // Проверяем, не закончились ли задачи
-        if (strcmp(buffer, NO_MORE_TASKS) == 0) {
-            printf("Все задачи выполнены. Клиент завершает работу.\n");
-            send_to_monitor("Все задачи выполнены - клиент завершает работу", server_ip);
+        // Проверяем, не закончились ли задачи или сервер не завершает работу
+        if (strcmp(buffer, NO_MORE_TASKS) == 0 || strcmp(buffer, "SERVER_SHUTDOWN") == 0) {
+            if (strcmp(buffer, NO_MORE_TASKS) == 0) {
+                printf("Все задачи выполнены. Клиент завершает работу.\n");
+                send_to_monitor("Все задачи выполнены - клиент завершает работу", server_ip);
+            } else {
+                printf("Сервер завершает работу. Клиент завершает работу.\n");
+                send_to_monitor("Сервер завершает работу - клиент завершает работу", server_ip);
+            }
             break;
         }
         
@@ -244,6 +249,7 @@ int main(int argc, char *argv[]) {
         }
         
         printf("Результат отправлен серверу\n");
+        sleep(2); 
         send_to_monitor("Результат отправлен серверу", server_ip);
         free(encrypted);
         
